@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ordering-api
+  labels: { app: ordering-api }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: ordering-api }
+  template:
+    metadata:
+      labels: { app: ordering-api }
+    spec:
+      containers:
+        - name: ordering-api
+          image: eshopacr123.azurecr.io/eshop-ordering:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: ConnectionStrings__OrderingDb
+              valueFrom:
+                secretKeyRef:
+                  name: backends-secret
+                  key: OrderingDb
+            # If your code uses Service Bus
+            - name: ServiceBus__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: backends-secret
+                  key: ServiceBus
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+

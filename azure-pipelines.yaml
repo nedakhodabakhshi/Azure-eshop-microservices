@@ -1,0 +1,158 @@
+trigger:
+  branches:
+    include:
+      - main
+
+# ---------------- Variables ----------------
+variables:
+  # Service connections
+  azureSubscription: 'eshop-subscription'
+  acrServiceConnection: 'acr-eshop'
+
+  # AKS / ACR settings
+  aksResourceGroup: 'eshop-rg'
+  aksClusterName: 'eshop-aks'
+  acrLoginServer: 'eshopacr123.azurecr.io'
+
+  # Namespace
+  kubernetesNamespace: 'default'
+
+  # ACR repositories
+  imageCatalog: 'eshop-catalog'
+  imageBasket: 'eshop-basket'
+  imageOrdering: 'eshop-ordering'
+  imageWebapp: 'eshop-webapp'
+
+  # Tag each build uniquely
+  imageTag: '$(Build.BuildId)'
+
+# ---------------- Stages ----------------
+stages:
+
+# ===== Stage 1: Build & Push Images =====
+- stage: Build_Push
+  displayName: Build & Push All Docker Images
+  jobs:
+  - job: BuildPushJob
+    displayName: Build & Push Images to ACR
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - checkout: self
+        clean: true
+
+      # Build & Push Catalog.API
+      - task: Docker@2
+        displayName: Build & Push Catalog.API
+        inputs:
+          command: buildAndPush
+          containerRegistry: '$(acrServiceConnection)'
+          repository: '$(imageCatalog)'
+          Dockerfile: 'src/Catalog.API/Dockerfile'
+          buildContext: 'src/Catalog.API'
+          tags: |
+            $(imageTag)
+            latest
+
+      # Build & Push Basket.API
+      - task: Docker@2
+        displayName: Build & Push Basket.API
+        inputs:
+          command: buildAndPush
+          containerRegistry: '$(acrServiceConnection)'
+          repository: '$(imageBasket)'
+          Dockerfile: 'src/Basket.API/Dockerfile'
+          buildContext: 'src/Basket.API'
+          tags: |
+            $(imageTag)
+            latest
+
+      # Build & Push Ordering.API
+      - task: Docker@2
+        displayName: Build & Push Ordering.API
+        inputs:
+          command: buildAndPush
+          containerRegistry: '$(acrServiceConnection)'
+          repository: '$(imageOrdering)'
+          Dockerfile: 'src/Ordering.API/Dockerfile'
+          buildContext: 'src/Ordering.API'
+          tags: |
+            $(imageTag)
+            latest
+
+      # Build & Push WebApp
+      - task: Docker@2
+        displayName: Build & Push WebApp
+        inputs:
+          command: buildAndPush
+          containerRegistry: '$(acrServiceConnection)'
+          repository: '$(imageWebapp)'
+          Dockerfile: 'src/WebApp/Dockerfile'
+          buildContext: 'src/WebApp'
+          tags: |
+            $(imageTag)
+            latest
+
+# ===== Stage 2: Deploy to AKS =====
+- stage: Deploy
+  displayName: Deploy to AKS
+  dependsOn: Build_Push
+  jobs:
+  - job: DeployJob
+    displayName: Deploy Kubernetes Resources
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - checkout: self
+        clean: true
+
+      # Get AKS credentials
+      - task: AzureCLI@2
+        displayName: 'Get AKS credentials'
+        inputs:
+          azureSubscription: '$(azureSubscription)'
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -e
+            echo "Fetching AKS credentials..."
+            az aks get-credentials -g "$(aksResourceGroup)" -n "$(aksClusterName)" --overwrite-existing
+            kubectl config set-context --current --namespace=$(kubernetesNamespace)
+            kubectl cluster-info
+
+      # Deploy all manifests and update images
+      - task: Bash@3
+        displayName: 'Apply Kubernetes manifests and update images'
+        inputs:
+          targetType: inline
+          script: |
+            set -e
+
+            # Compose full image names using Azure DevOps variables
+            IMG_CATALOG="$(acrLoginServer)/$(imageCatalog):$(imageTag)"
+            IMG_BASKET="$(acrLoginServer)/$(imageBasket):$(imageTag)"
+            IMG_ORDERING="$(acrLoginServer)/$(imageOrdering):$(imageTag)"
+            IMG_WEBAPP="$(acrLoginServer)/$(imageWebapp):$(imageTag)"
+
+            echo "Catalog Image:  $IMG_CATALOG"
+            echo "Basket Image:   $IMG_BASKET"
+            echo "Ordering Image: $IMG_ORDERING"
+            echo "WebApp Image:   $IMG_WEBAPP"
+
+            # Apply manifests (Secrets/Ingress are handled manually, not here)
+            kubectl apply -f deploy/k8s/catalog/
+            kubectl apply -f deploy/k8s/basket/
+            kubectl apply -f deploy/k8s/ordering/
+            kubectl apply -f deploy/k8s/webapp/
+
+            # Update images
+            kubectl set image deployment/catalog-api  catalog-api=$IMG_CATALOG    --record || true
+            kubectl set image deployment/basket-api   basket-api=$IMG_BASKET      --record || true
+            kubectl set image deployment/ordering-api ordering-api=$IMG_ORDERING  --record || true
+            kubectl set image deployment/webapp       webapp=$IMG_WEBAPP          --record || true
+
+            # Rollout status
+            kubectl rollout status deployment/catalog-api   --timeout=180s || true
+            kubectl rollout status deployment/basket-api    --timeout=180s || true
+            kubectl rollout status deployment/ordering-api  --timeout=180s || true
+            kubectl rollout status deployment/webapp        --timeout=180s || true

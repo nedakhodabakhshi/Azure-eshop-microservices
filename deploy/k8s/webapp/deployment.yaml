@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp
+  labels: { app: webapp }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: webapp }
+  template:
+    metadata:
+      labels: { app: webapp }
+    spec:
+      containers:
+        - name: webapp
+          image: eshopacr123.azurecr.io/eshop-webapp:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: Catalog__BaseUrl
+              value: "http://catalog-api.default.svc.cluster.local:8080"
+            - name: Basket__BaseUrl
+              value: "http://basket-api.default.svc.cluster.local:8080"
+            - name: Ordering__BaseUrl
+              value: "http://ordering-api.default.svc.cluster.local:8080"

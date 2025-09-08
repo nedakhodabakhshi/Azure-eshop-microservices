@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: basket-api
+  labels: { app: basket-api }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: basket-api }
+  template:
+    metadata:
+      labels: { app: basket-api }
+    spec:
+      containers:
+        - name: basket-api
+          image: eshopacr123.azurecr.io/eshop-basket:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: Redis__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: backends-secret
+                  key: RedisEndpoint
+            - name: Redis__Password
+              valueFrom:
+                secretKeyRef:
+                  name: backends-secret
+                  key: RedisPassword
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+
