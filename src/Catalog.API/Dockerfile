@@ -5,6 +5,7 @@ WORKDIR /src
 
 # Copy csproj files first (including referenced projects)
 COPY src/Catalog.API/Catalog.API.csproj src/Catalog.API/
+COPY src/EventBus/EventBus.csproj src/EventBus/
 COPY src/EventBusRabbitMQ/EventBusRabbitMQ.csproj src/EventBusRabbitMQ/
 COPY src/IntegrationEventLogEF/IntegrationEventLogEF.csproj src/IntegrationEventLogEF/
 COPY src/eShop.ServiceDefaults/eShop.ServiceDefaults.csproj src/eShop.ServiceDefaults/
