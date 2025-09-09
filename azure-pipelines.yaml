@@ -49,7 +49,7 @@ stages:
           containerRegistry: '$(acrServiceConnection)'
           repository: '$(imageCatalog)'
           Dockerfile: 'src/Catalog.API/Dockerfile'
-          buildContext: 'src/Catalog.API'
+          buildContext: '$(Build.SourcesDirectory)'   # <-- changed
           tags: |
             $(imageTag)
             latest
@@ -62,7 +62,7 @@ stages:
           containerRegistry: '$(acrServiceConnection)'
           repository: '$(imageBasket)'
           Dockerfile: 'src/Basket.API/Dockerfile'
-          buildContext: 'src/Basket.API'
+          buildContext: '$(Build.SourcesDirectory)'   # <-- changed
           tags: |
             $(imageTag)
             latest
@@ -75,7 +75,7 @@ stages:
           containerRegistry: '$(acrServiceConnection)'
           repository: '$(imageOrdering)'
           Dockerfile: 'src/Ordering.API/Dockerfile'
-          buildContext: 'src/Ordering.API'
+          buildContext: '$(Build.SourcesDirectory)'   # <-- changed
           tags: |
             $(imageTag)
             latest
@@ -88,7 +88,7 @@ stages:
           containerRegistry: '$(acrServiceConnection)'
           repository: '$(imageWebapp)'
           Dockerfile: 'src/WebApp/Dockerfile'
-          buildContext: 'src/WebApp'
+          buildContext: '$(Build.SourcesDirectory)'   # <-- changed
           tags: |
             $(imageTag)
             latest
@@ -127,31 +127,21 @@ stages:
           targetType: inline
           script: |
             set -e
-
-            # Compose full image names using Azure DevOps variables
             IMG_CATALOG="$(acrLoginServer)/$(imageCatalog):$(imageTag)"
             IMG_BASKET="$(acrLoginServer)/$(imageBasket):$(imageTag)"
             IMG_ORDERING="$(acrLoginServer)/$(imageOrdering):$(imageTag)"
             IMG_WEBAPP="$(acrLoginServer)/$(imageWebapp):$(imageTag)"
 
-            echo "Catalog Image:  $IMG_CATALOG"
-            echo "Basket Image:   $IMG_BASKET"
-            echo "Ordering Image: $IMG_ORDERING"
-            echo "WebApp Image:   $IMG_WEBAPP"
-
-            # Apply manifests (Secrets/Ingress are handled manually, not here)
             kubectl apply -f deploy/k8s/catalog/
             kubectl apply -f deploy/k8s/basket/
             kubectl apply -f deploy/k8s/ordering/
             kubectl apply -f deploy/k8s/webapp/
 
-            # Update images
             kubectl set image deployment/catalog-api  catalog-api=$IMG_CATALOG    --record || true
             kubectl set image deployment/basket-api   basket-api=$IMG_BASKET      --record || true
             kubectl set image deployment/ordering-api ordering-api=$IMG_ORDERING  --record || true
             kubectl set image deployment/webapp       webapp=$IMG_WEBAPP          --record || true
 
-            # Rollout status
             kubectl rollout status deployment/catalog-api   --timeout=180s || true
             kubectl rollout status deployment/basket-api    --timeout=180s || true
             kubectl rollout status deployment/ordering-api  --timeout=180s || true
