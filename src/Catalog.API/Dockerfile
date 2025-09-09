@@ -10,7 +10,7 @@ COPY src/IntegrationEventLogEF/IntegrationEventLogEF.csproj src/IntegrationEvent
 COPY src/eShop.ServiceDefaults/eShop.ServiceDefaults.csproj src/eShop.ServiceDefaults/
 
 # Restore with prerelease allowed (needed for Aspire.Azure.AI.OpenAI)
-RUN dotnet restore --prerelease src/Catalog.API/Catalog.API.csproj
+RUN dotnet restore src/Catalog.API/Catalog.API.csproj
 
 # Copy the rest of the source
 COPY src/ .
